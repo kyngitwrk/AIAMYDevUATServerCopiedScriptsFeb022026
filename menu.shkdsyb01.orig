@@ -1,0 +1,319 @@
+#!/bin/ksh
+#
+# System Operator Menu
+
+# Set file creation mask
+umask 002
+
+BINDIR=/amdc/co/scripts
+LOGDIR=/amdc/co/logs
+LOGFILE=$LOGDIR/menu/menu.`date +'%m%d'`
+HOSTNAME=`hostname`
+USER=`logname`
+BOLD=`tput bold`
+NORMAL=`tput sgr0`
+SEL=`tput cup 21 30`
+
+function LOG
+{
+if [ "$1" = "" ]; then
+        echo "----------------------------------------------------------------"
+else
+        echo "`date` : $USER : $1" >> $LOGFILE
+fi
+}
+
+function MAIN
+{
+until [ $MENU = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME          System Operator Main Menu           User : $USER${NORMAL}\n\n"
+        echo "                                  1. Sybase Menu\n"
+        echo "                                  2. XCOM Menu\n"
+        echo "                                  3. Backup Menu\n"
+        echo "                                  4. System Menu\n"
+        echo "                                  5. Shutdown Menu\n"
+        echo "                                  q. Shell (ksh)\n"
+
+        echo "${SEL}Enter your option : \c"
+        read MENU
+
+        case $MENU in
+        '1') LOG "Start Sybase Menu."
+                SYBASE
+                LOG "End Sybase Menu.";;
+        '2') LOG "Start XCOM Menu."
+                XCOM
+                LOG "End XCOM Menu.";;
+        '3') LOG "Start Backup Menu."
+                BACKUP
+                LOG "End Backup Menu.";;
+        '4') LOG "Start System Menu."
+                SYSTEM
+                LOG "End System Menu.";;
+        '5') LOG "Start Shutdown Menu."
+                SHUTDOWN
+                LOG "End Shutdown Menu.";;
+        esac
+done
+}
+
+function SYBASE
+{
+SYBASE="0"
+until [ $SYBASE = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME                  Sybase Menu                User : $USER${NORMAL}\n\n"
+        echo "                                1. Check Sybase Server\n"
+        echo "                                2. Login Sybase Server\n"
+        echo "                                q. Exit\n"
+
+        echo "${SEL}Enter your option : \c"
+        read SYBASE
+
+        case $SYBASE in
+        '1') LOG "Check Sybase Server starts."
+                clear
+                $BINDIR/chksvr.sh
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Check Sybase Server ends."
+                ;;
+        '2') LOG "Login Sybase Server starts."
+                clear
+                $BINDIR/logonsql.sh
+                LOG "Login Sybase Server ends."
+                ;;
+        esac
+done
+}
+
+function XCOM
+{
+XCOM="0"
+until [ $XCOM = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME                   XCOM Menu                  User : $USER${NORMAL}\n\n"
+        echo "                                  1. Check XCOM Jobs\n"
+        echo "                                  2. Display XCOM Job Detail\n"
+        echo "                                  3. Kill XCOM Job\n"
+        echo "                                  4. Startup XCOM\n"
+        echo "                                  5. Shutdown XCOM\n"
+        echo "                                  q. Exit\n"
+
+        echo "${SEL}Enter your option : \c"
+        read XCOM
+
+        case $XCOM in
+        '1') LOG "Check XCOM Jobs starts."
+                echo ""
+                /usr/bin/xcomqm -La | grep -v "DONE"
+                if [ `/usr/bin/echo $?` -eq 1 ]; then
+                        echo "There is no active XCOM job running at the moment."
+                fi
+
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Check XCOM Jobs ends."
+                ;;
+        '2') LOG "Display XCOM Job Detail starts."
+                echo "\nPlease enter the XCOM job number : \c"
+                read NUM
+
+                CHKNUM=`/usr/bin/xcomqm -La | grep -c "$NUM"`
+                if [ "$CHKNUM" != "1" ]; then
+                        echo "\nInvalid job number!!!"
+                else
+                        /usr/bin/xcomqm -D${NUM}
+                fi
+
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Display XCOM Job Detail ends."
+                ;;
+        '3') LOG "Kill XCOM Job starts."
+                echo "\nPlease enter the XCOM job number to kill : \c"
+                read NUM
+
+                echo "\nAre you sure you want to kill this XCOM job $NUM [ y or n ] ? \c"
+                read SURE
+
+                if [ "$SURE" = "y" ]; then
+                        /usr/bin/xcomqm -T${NUM}
+                        echo "XCOM job $NUM has been terminated."
+                fi
+
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Kill XCOM Job ends."
+                ;;
+        '4') LOG "Startup XCOM starts."
+                echo ""
+                /etc/xcomd
+                sleep 1
+                echo "Press any key to continue...\c"
+                read WAIT
+                LOG "Startup XCOM ends."
+                ;;
+        '5') LOG "Shutdown XCOM starts."
+                echo ""
+                /etc/xcomd -s
+                echo "Press any key to continue...\c"
+                read WAIT
+                LOG "Shutdown XCOM ends."
+                ;;
+        esac
+done
+}
+
+function BACKUP
+{
+BACKUP="0"
+until [ $BACKUP = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME                  Backup Menu                 User : $USER${NORMAL}\n\n"
+        echo "                       1. DB Transactions Backup (log)\n"
+        echo "                       2. DB Full Backup\n"
+        echo "                       3. DB Full Backup (db_print & db_print_ul)\n"
+        echo "                       4. File Systems Backup (dumpunix)\n"
+        echo "                       5. Adhoc DB Transaction Backup (SPRR log)\n"
+        echo "                       6. Adhoc DB Backup (SPRR DB)\n"
+        echo "                       q. Exit\n"
+
+        echo "${SEL}Enter your option : \c"
+        read BACKUP
+
+        case $BACKUP in
+        '1') LOG "DB Transaction Backup starts."
+                clear
+                $BINDIR/dumplog.sh
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "DB Transaction Backup ends."
+                ;;
+        '2') LOG "DB Full Backup starts."
+                clear
+                $BINDIR/dumpdb.sh
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "DB Full Backup ends."
+                ;;
+        '3') LOG "db_print and db_print_ul Full Backup starts."
+                clear
+                $BINDIR/dumpprt.sh
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "db_print and db_print_ul Full Backup ends."
+                ;;
+        '4') LOG "File Systems Backup starts."
+                $BINDIR/dumpunix
+                find ${LOGDIR}/menu -mtime +36 -exec rm -f {} \;
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "File Systems Backup ends."
+                ;;
+        '5') LOG "Adhoc DB Transaction Backup starts."
+                clear
+                $BINDIR/dumplogadh.sh
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Adhoc DB Transaction Backup ends."
+                ;;
+        '6') LOG "Adhoc DB Backup starts."
+                clear
+                $BINDIR/dumpdbadh.sh
+                echo "\nPlease proceed to export the backup to tape...\c"
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Adhoc DB Backup ends."
+                ;;
+        esac
+done
+}
+
+function SYSTEM
+{
+SYSTEM="0"
+until [ $SYSTEM = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME                  System Menu                 User : $USER${NORMAL}\n\n"
+        echo "                              1. Check System Processes\n"
+        echo "                              2. Check File Systems Usage\n"
+        echo "                              q. Exit\n"
+
+        echo "${SEL}Enter your option : \c"
+        read SYSTEM
+
+        case $SYSTEM in
+        '1') LOG "Check System Processes starts."
+                ps -ef
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Check System Processes ends."
+                ;;
+        '2') LOG "Check File Systems Usage starts."
+                clear
+                df -k
+                echo "\nPress any key to continue...\c"
+                read WAIT
+                LOG "Check File Systems Usage ends."
+                ;;
+        esac
+done
+}
+
+function SHUTDOWN
+{
+SHUTDOWN="0"
+until [ $SHUTDOWN = "q" ]; do
+        clear
+        echo "\n${BOLD}Hostname : $HOSTNAME             Shutdown Menu             User : $USER${NORMAL}\n\n"
+        echo "                                1. Reboot System\n"
+        echo "                                2. Power off System\n"
+        echo "                                q. Exit\n"
+
+        echo "${SEL}Enter your option : \c"
+        read SHUTDOWN
+
+        case $SHUTDOWN in
+        '1') LOG "Reboot System starts."
+                clear
+                SHUT="N"
+                printf "\nAre you sure you want to reboot system [ y or n (default) ] : "
+                read SHUT
+                if [ "$SHUT" = "y" ]; then
+                        echo "\nPlease enter the root password.\n"
+                        su - root "/usr/sbin/shutdown -y -g 0 -i 6"
+                        echo "\n\n\nSystem reboot in progress...\c"
+                        read WAIT
+                fi
+             LOG "Reboot System ends."
+                ;;
+        '2') LOG "Power off System starts."
+                clear
+                SHUT="N"
+                printf "\nAre you sure you want to power-off system [ y or n (default) ] : "
+                read SHUT
+                if [ "$SHUT" = "y" ]; then
+                        echo "\nPlease enter the root password.\n"
+                        su - root "/usr/sbin/shutdown -y -g 0 -i 5"
+                        echo "\n\n\nSystem power-off in progress...\c"
+                        read WAIT
+                fi
+             LOG "Power off System ends."
+                ;;
+        esac
+done
+}
+
+LOG "Start System Operator Main Menu"
+MAIN
+LOG "End System Operator Main Menu"
+
+clear
+return 0
