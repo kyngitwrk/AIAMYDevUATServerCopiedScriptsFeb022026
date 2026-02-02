@@ -1,0 +1,90 @@
+#!/bin/ksh
+#
+# Backup Sybase Databases.
+
+# Set file creation mask
+umask 002
+
+SYBASE=/sybase
+export SYBASE
+
+SERVER=KPSYB01
+LOGFILE=/amdc/co/logs/$SERVER/dumpdb/dumpprt.`date +'%m%d'`
+. /sybase/password/$SERVER.kcop701
+ISQL="/sybase/bin/isql -U$USER -S$SERVER -I/sybase/interfaces"
+
+CONSOLE=`tty`
+GETDATE="declare @tt char(20)
+select @tt = convert(char(20), getdate())
+"
+
+NOW=`date +"%Y%m%d"`
+DBPRT=dbprt$NOW
+DBPUL=dbpul$NOW
+
+test -f $LOGFILE
+if [ `/usr/bin/echo $?` -eq 0 ]; then
+        cp -p $LOGFILE ${LOGFILE}.prev
+fi
+
+TAPDRV="N"
+while [ "$TAPDRV" = "N" ]; do
+        printf "\nPlease enter the tape device name [ 0m (default) or 1m or 2m ] : "
+        read TAPDRV
+
+        if [ "$TAPDRV" = "" -o "$TAPDRV" = "0m" ]; then
+                TAPDRV="tapedump0"
+        elif [ "$TAPDRV" = "1m" ]; then
+                TAPDRV="tapedump1"
+        elif [ "$TAPDRV" = "2m" ]; then
+                TAPDRV="tapedump2"
+        else
+                echo "\nInvalid tape device name !!!"
+                TAPDRV="N"
+        fi
+done
+
+TAPNO=""
+while [ "$TAPNO" = "" ]; do
+        printf "\nPlease enter the tape number : "
+        read TAPNO
+done
+
+echo "$SERVER Databases Backup starts at `date`\n" > $LOGFILE
+echo "Tape $TAPNO is mounted on tape device $TAPDRV.\n" >> $LOGFILE
+
+$ISQL << EOF | tee -a $LOGFILE
+$PASSWD
+$GETDATE
+print "%1! - Starting db_print database backup with init.", @tt
+go
+dump database db_print to $TAPDRV with file="$DBPRT", init
+go
+$GETDATE
+print "%1! - Starting db_print_ul database backup with unload.", @tt
+go
+dump database db_print_ul to $TAPDRV with file="$DBPUL", unload
+go
+EOF
+
+echo "\n$SERVER Databases Backup ends at `date`" >> $LOGFILE
+
+echo "\nThe followings are the backup statistics for $SERVER:" >> $LOGFILE
+echo "-----------------------------------------------------\n" >> $LOGFILE
+
+grep "Databases Backup" $LOGFILE | \
+awk '{ printf ( "%10s %-6s : %3s %3s %2s %5s\n", $3, $4, $6, $7, $8, $9 ) }' >> $LOGFILE
+
+echo "" >> $LOGFILE
+
+/usr/bin/egrep -e "Dumpfile|100%|complete" $LOGFILE | \
+awk 'BEGIN { db=""; filename=""; num=1; size=0; total=0 }
+/Dumpfile/ { filename=$6 }
+/100%/ { db=$5; size=$6 }
+/DUMP is complete/ { printf ( "%2d) %-18s %9d KB %7d MB %7.2f GB (%s)\n",num,db,size,size/1024,size/1024000,filename );num=num+1;total=total+size;size=0 }
+END { printf ( "%22s %12s %10s %10s\n","","------------","---------","---------");
+printf ( "%22s %9d KB %7d MB %7.2f GB\n\n","Total Backup Size:",total,total/1024,total/1024000 ) }' >> $LOGFILE
+
+# Send mail to support staff
+. /amdc/ts/maillst/mailrcp
+mailx -s "`hostname` : Sybase $SERVER Database Backup Report." $CORCP $PCRCP $TSRCP < $LOGFILE
