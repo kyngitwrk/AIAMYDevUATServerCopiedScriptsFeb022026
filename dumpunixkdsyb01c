@@ -1,0 +1,14 @@
+dumpunix:       ELF 32-bit MSB executable SPARC Version 1, dynamically linked, not stripped
+-bash-5.2# cat  dumpunix.c
+#include <stdio.h>
+
+main (argc, argv)
+int argc;
+char *argv[];
+{
+        char str[35];
+        setuid(0);setgid(0);
+        strcpy(str, "/amdc/co/scripts/dumpunix.sh ");
+        strcat(str, argv[1]);
+        system(str);
+}
